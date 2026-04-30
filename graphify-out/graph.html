@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>graphify - graphify-out/graph.html</title>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f0f1a; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; display: flex; height: 100vh; overflow: hidden; }
+  #graph { flex: 1; }
+  #sidebar { width: 280px; background: #1a1a2e; border-left: 1px solid #2a2a4e; display: flex; flex-direction: column; overflow: hidden; }
+  #search-wrap { padding: 12px; border-bottom: 1px solid #2a2a4e; }
+  #search { width: 100%; background: #0f0f1a; border: 1px solid #3a3a5e; color: #e0e0e0; padding: 7px 10px; border-radius: 6px; font-size: 13px; outline: none; }
+  #search:focus { border-color: #4E79A7; }
+  #search-results { max-height: 140px; overflow-y: auto; padding: 4px 12px; border-bottom: 1px solid #2a2a4e; display: none; }
+  .search-item { padding: 4px 6px; cursor: pointer; border-radius: 4px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .search-item:hover { background: #2a2a4e; }
+  #info-panel { padding: 14px; border-bottom: 1px solid #2a2a4e; min-height: 140px; }
+  #info-panel h3 { font-size: 13px; color: #aaa; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+  #info-content { font-size: 13px; color: #ccc; line-height: 1.6; }
+  #info-content .field { margin-bottom: 5px; }
+  #info-content .field b { color: #e0e0e0; }
+  #info-content .empty { color: #555; font-style: italic; }
+  .neighbor-link { display: block; padding: 2px 6px; margin: 2px 0; border-radius: 3px; cursor: pointer; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid #333; }
+  .neighbor-link:hover { background: #2a2a4e; }
+  #neighbors-list { max-height: 160px; overflow-y: auto; margin-top: 4px; }
+  #legend-wrap { flex: 1; overflow-y: auto; padding: 12px; }
+  #legend-wrap h3 { font-size: 13px; color: #aaa; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .legend-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; border-radius: 4px; font-size: 12px; }
+  .legend-item:hover { background: #2a2a4e; padding-left: 4px; }
+  .legend-item.dimmed { opacity: 0.35; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .legend-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .legend-count { color: #666; font-size: 11px; }
+  #stats { padding: 10px 14px; border-top: 1px solid #2a2a4e; font-size: 11px; color: #555; }
+</style>
+</head>
+<body>
+<div id="graph"></div>
+<div id="sidebar">
+  <div id="search-wrap">
+    <input id="search" type="text" placeholder="Search nodes..." autocomplete="off">
+    <div id="search-results"></div>
+  </div>
+  <div id="info-panel">
+    <h3>Node Info</h3>
+    <div id="info-content"><span class="empty">Click a node to inspect it</span></div>
+  </div>
+  <div id="legend-wrap">
+    <h3>Communities</h3>
+    <div id="legend"></div>
+  </div>
+  <div id="stats">45 nodes &middot; 39 edges &middot; 12 communities</div>
+</div>
+<script>
+const RAW_NODES = [{"id": "src_init_py", "label": "__init__.py", "color": {"background": "#B07AA1", "border": "#B07AA1", "highlight": {"background": "#ffffff", "border": "#B07AA1"}}, "size": 10.0, "font": {"size": 0, "color": "#ffffff"}, "title": "__init__.py", "community": 6, "community_name": "Package Root", "source_file": "src/__init__.py", "file_type": "code", "degree": 0}, {"id": "src_utils_config_py", "label": "config.py", "color": {"background": "#FF9DA7", "border": "#FF9DA7", "highlight": {"background": "#ffffff", "border": "#FF9DA7"}}, "size": 10.0, "font": {"size": 0, "color": "#ffffff"}, "title": "config.py", "community": 7, "community_name": "Configuration", "source_file": "src/utils/config.py", "file_type": "code", "degree": 0}, {"id": "src_utils_init_py", "label": "__init__.py", "color": {"background": "#9C755F", "border": "#9C755F", "highlight": {"background": "#ffffff", "border": "#9C755F"}}, "size": 10.0, "font": {"size": 0, "color": "#ffffff"}, "title": "__init__.py", "community": 8, "community_name": "Utils Package", "source_file": "src/utils/__init__.py", "file_type": "code", "degree": 0}, {"id": "src_features_build_features_py", "label": "build_features.py", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 21.2, "font": {"size": 12, "color": "#ffffff"}, "title": "build_features.py", "community": 2, "community_name": "Feature Engineering", "source_file": "src/features/build_features.py", "file_type": "code", "degree": 3}, {"id": "build_features_cycle_stats", "label": "_cycle_stats()", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 21.2, "font": {"size": 12, "color": "#ffffff"}, "title": "_cycle_stats()", "community": 2, "community_name": "Feature Engineering", "source_file": "src/features/build_features.py", "file_type": "code", "degree": 3}, {"id": "build_features_fft_features", "label": "_fft_features()", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 21.2, "font": {"size": 12, "color": "#ffffff"}, "title": "_fft_features()", "community": 2, "community_name": "Feature Engineering", "source_file": "src/features/build_features.py", "file_type": "code", "degree": 3}, {"id": "build_features_build_features", "label": "build_features()", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 25.0, "font": {"size": 12, "color": "#ffffff"}, "title": "build_features()", "community": 2, "community_name": "Feature Engineering", "source_file": "src/features/build_features.py", "file_type": "code", "degree": 4}, {"id": "build_features_rationale_8", "label": "Compute statistical features for one sensor array (n_cycles, n_points).", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Compute statistical features for one sensor array (n_cycles, n_points).", "community": 2, "community_name": "Feature Engineering", "source_file": "src/features/build_features.py", "file_type": "rationale", "degree": 1}, {"id": "build_features_rationale_26", "label": "Compute FFT spectral energy features for each cycle.", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Compute FFT spectral energy features for each cycle.", "community": 2, "community_name": "Feature Engineering", "source_file": "src/features/build_features.py", "file_type": "rationale", "degree": 1}, {"id": "build_features_rationale_36", "label": "Build feature matrix from PS2 and FS1 sensor arrays.      Aggregates each sensor", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Build feature matrix from PS2 and FS1 sensor arrays.      Aggregates each sensor", "community": 2, "community_name": "Feature Engineering", "source_file": "src/features/build_features.py", "file_type": "rationale", "degree": 1}, {"id": "src_features_init_py", "label": "__init__.py", "color": {"background": "#BAB0AC", "border": "#BAB0AC", "highlight": {"background": "#ffffff", "border": "#BAB0AC"}}, "size": 10.0, "font": {"size": 0, "color": "#ffffff"}, "title": "__init__.py", "community": 9, "community_name": "Features Package", "source_file": "src/features/__init__.py", "file_type": "code", "degree": 0}, {"id": "src_data_load_py", "label": "load.py", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 28.8, "font": {"size": 12, "color": "#ffffff"}, "title": "load.py", "community": 0, "community_name": "Data Loading", "source_file": "src/data/load.py", "file_type": "code", "degree": 5}, {"id": "load_load_sensor", "label": "load_sensor()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 25.0, "font": {"size": 12, "color": "#ffffff"}, "title": "load_sensor()", "community": 0, "community_name": "Data Loading", "source_file": "src/data/load.py", "file_type": "code", "degree": 4}, {"id": "load_load_ps2", "label": "load_ps2()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 21.2, "font": {"size": 12, "color": "#ffffff"}, "title": "load_ps2()", "community": 0, "community_name": "Data Loading", "source_file": "src/data/load.py", "file_type": "code", "degree": 3}, {"id": "load_load_fs1", "label": "load_fs1()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 21.2, "font": {"size": 12, "color": "#ffffff"}, "title": "load_fs1()", "community": 0, "community_name": "Data Loading", "source_file": "src/data/load.py", "file_type": "code", "degree": 3}, {"id": "load_load_profile", "label": "load_profile()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 21.2, "font": {"size": 12, "color": "#ffffff"}, "title": "load_profile()", "community": 0, "community_name": "Data Loading", "source_file": "src/data/load.py", "file_type": "code", "degree": 3}, {"id": "load_load_target", "label": "load_target()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 21.2, "font": {"size": 12, "color": "#ffffff"}, "title": "load_target()", "community": 0, "community_name": "Data Loading", "source_file": "src/data/load.py", "file_type": "code", "degree": 3}, {"id": "load_rationale_8", "label": "Load a sensor file. Returns array of shape (n_cycles, n_points).", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Load a sensor file. Returns array of shape (n_cycles, n_points).", "community": 0, "community_name": "Data Loading", "source_file": "src/data/load.py", "file_type": "rationale", "degree": 1}, {"id": "load_rationale_13", "label": "Load PS2 pressure sensor \u2014 6000 points/cycle at 100 Hz.", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Load PS2 pressure sensor \u2014 6000 points/cycle at 100 Hz.", "community": 0, "community_name": "Data Loading", "source_file": "src/data/load.py", "file_type": "rationale", "degree": 1}, {"id": "load_rationale_18", "label": "Load FS1 flow sensor \u2014 600 points/cycle at 10 Hz.", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Load FS1 flow sensor \u2014 600 points/cycle at 10 Hz.", "community": 0, "community_name": "Data Loading", "source_file": "src/data/load.py", "file_type": "rationale", "degree": 1}, {"id": "load_rationale_23", "label": "Load profile file containing target labels and system conditions.", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Load profile file containing target labels and system conditions.", "community": 0, "community_name": "Data Loading", "source_file": "src/data/load.py", "file_type": "rationale", "degree": 1}, {"id": "load_rationale_30", "label": "Return binary target: 1 = valve optimal (100%), 0 = non-optimal.", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Return binary target: 1 = valve optimal (100%), 0 = non-optimal.", "community": 0, "community_name": "Data Loading", "source_file": "src/data/load.py", "file_type": "rationale", "degree": 1}, {"id": "src_data_split_py", "label": "split.py", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "split.py", "community": 4, "community_name": "Train/Test Split", "source_file": "src/data/split.py", "file_type": "code", "degree": 1}, {"id": "split_split_cycles", "label": "split_cycles()", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 17.5, "font": {"size": 12, "color": "#ffffff"}, "title": "split_cycles()", "community": 4, "community_name": "Train/Test Split", "source_file": "src/data/split.py", "file_type": "code", "degree": 2}, {"id": "split_rationale_9", "label": "Split into train (first TRAIN_CYCLES) and test (remaining).      The test set mu", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Split into train (first TRAIN_CYCLES) and test (remaining).      The test set mu", "community": 4, "community_name": "Train/Test Split", "source_file": "src/data/split.py", "file_type": "rationale", "degree": 1}, {"id": "src_data_init_py", "label": "__init__.py", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 10.0, "font": {"size": 0, "color": "#ffffff"}, "title": "__init__.py", "community": 10, "community_name": "Data Package", "source_file": "src/data/__init__.py", "file_type": "code", "degree": 0}, {"id": "src_models_predict_py", "label": "predict.py", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 17.5, "font": {"size": 12, "color": "#ffffff"}, "title": "predict.py", "community": 3, "community_name": "Model Inference", "source_file": "src/models/predict.py", "file_type": "code", "degree": 2}, {"id": "predict_load_model", "label": "load_model()", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "load_model()", "community": 3, "community_name": "Model Inference", "source_file": "src/models/predict.py", "file_type": "code", "degree": 1}, {"id": "predict_predict_cycle", "label": "predict_cycle()", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 17.5, "font": {"size": 12, "color": "#ffffff"}, "title": "predict_cycle()", "community": 3, "community_name": "Model Inference", "source_file": "src/models/predict.py", "file_type": "code", "degree": 2}, {"id": "predict_rationale_15", "label": "Return prediction and probability for one or more cycles.", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Return prediction and probability for one or more cycles.", "community": 3, "community_name": "Model Inference", "source_file": "src/models/predict.py", "file_type": "rationale", "degree": 1}, {"id": "src_models_evaluate_py", "label": "evaluate.py", "color": {"background": "#EDC948", "border": "#EDC948", "highlight": {"background": "#ffffff", "border": "#EDC948"}}, "size": 17.5, "font": {"size": 12, "color": "#ffffff"}, "title": "evaluate.py", "community": 5, "community_name": "Model Evaluation", "source_file": "src/models/evaluate.py", "file_type": "code", "degree": 2}, {"id": "evaluate_compute_metrics", "label": "compute_metrics()", "color": {"background": "#EDC948", "border": "#EDC948", "highlight": {"background": "#ffffff", "border": "#EDC948"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "compute_metrics()", "community": 5, "community_name": "Model Evaluation", "source_file": "src/models/evaluate.py", "file_type": "code", "degree": 1}, {"id": "evaluate_print_report", "label": "print_report()", "color": {"background": "#EDC948", "border": "#EDC948", "highlight": {"background": "#ffffff", "border": "#EDC948"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "print_report()", "community": 5, "community_name": "Model Evaluation", "source_file": "src/models/evaluate.py", "file_type": "code", "degree": 1}, {"id": "src_models_init_py", "label": "__init__.py", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 10.0, "font": {"size": 0, "color": "#ffffff"}, "title": "__init__.py", "community": 11, "community_name": "Models Package", "source_file": "src/models/__init__.py", "file_type": "code", "degree": 0}, {"id": "src_models_train_py", "label": "train.py", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 40.0, "font": {"size": 12, "color": "#ffffff"}, "title": "train.py", "community": 1, "community_name": "Model Training Pipelines", "source_file": "src/models/train.py", "file_type": "code", "degree": 8}, {"id": "train_build_dummy_pipeline", "label": "build_dummy_pipeline()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "build_dummy_pipeline()", "community": 1, "community_name": "Model Training Pipelines", "source_file": "src/models/train.py", "file_type": "code", "degree": 1}, {"id": "train_build_baseline_pipeline", "label": "build_baseline_pipeline()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "build_baseline_pipeline()", "community": 1, "community_name": "Model Training Pipelines", "source_file": "src/models/train.py", "file_type": "code", "degree": 1}, {"id": "train_build_rf_pipeline", "label": "build_rf_pipeline()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "build_rf_pipeline()", "community": 1, "community_name": "Model Training Pipelines", "source_file": "src/models/train.py", "file_type": "code", "degree": 1}, {"id": "train_build_xgb_pipeline", "label": "build_xgb_pipeline()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "build_xgb_pipeline()", "community": 1, "community_name": "Model Training Pipelines", "source_file": "src/models/train.py", "file_type": "code", "degree": 1}, {"id": "train_build_lgbm_pipeline", "label": "build_lgbm_pipeline()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "build_lgbm_pipeline()", "community": 1, "community_name": "Model Training Pipelines", "source_file": "src/models/train.py", "file_type": "code", "degree": 1}, {"id": "train_cv_score", "label": "_cv_score()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 17.5, "font": {"size": 12, "color": "#ffffff"}, "title": "_cv_score()", "community": 1, "community_name": "Model Training Pipelines", "source_file": "src/models/train.py", "file_type": "code", "degree": 2}, {"id": "train_train_with_tracking", "label": "train_with_tracking()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 21.2, "font": {"size": 12, "color": "#ffffff"}, "title": "train_with_tracking()", "community": 1, "community_name": "Model Training Pipelines", "source_file": "src/models/train.py", "file_type": "code", "degree": 3}, {"id": "train_optimize_with_optuna", "label": "optimize_with_optuna()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 17.5, "font": {"size": 12, "color": "#ffffff"}, "title": "optimize_with_optuna()", "community": 1, "community_name": "Model Training Pipelines", "source_file": "src/models/train.py", "file_type": "code", "degree": 2}, {"id": "train_rationale_85", "label": "Train pipeline with cross-validation and log metrics to MLflow.", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Train pipeline with cross-validation and log metrics to MLflow.", "community": 1, "community_name": "Model Training Pipelines", "source_file": "src/models/train.py", "file_type": "rationale", "degree": 1}, {"id": "train_rationale_107", "label": "Find best hyperparameters via Optuna for the given model type.", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.8, "font": {"size": 0, "color": "#ffffff"}, "title": "Find best hyperparameters via Optuna for the given model type.", "community": 1, "community_name": "Model Training Pipelines", "source_file": "src/models/train.py", "file_type": "rationale", "degree": 1}];
+const RAW_EDGES = [{"from": "src_features_build_features_py", "to": "build_features_cycle_stats", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_features_build_features_py", "to": "build_features_fft_features", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_features_build_features_py", "to": "build_features_build_features", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "build_features_cycle_stats", "to": "build_features_build_features", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "build_features_cycle_stats", "to": "build_features_rationale_8", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "build_features_fft_features", "to": "build_features_build_features", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "build_features_fft_features", "to": "build_features_rationale_26", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "build_features_build_features", "to": "build_features_rationale_36", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_data_load_py", "to": "load_load_sensor", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_data_load_py", "to": "load_load_ps2", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_data_load_py", "to": "load_load_fs1", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_data_load_py", "to": "load_load_profile", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_data_load_py", "to": "load_load_target", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "load_load_sensor", "to": "load_load_ps2", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "load_load_sensor", "to": "load_load_fs1", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "load_load_sensor", "to": "load_rationale_8", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "load_load_ps2", "to": "load_rationale_13", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "load_load_fs1", "to": "load_rationale_18", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "load_load_profile", "to": "load_load_target", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "load_load_profile", "to": "load_rationale_23", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "load_load_target", "to": "load_rationale_30", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_data_split_py", "to": "split_split_cycles", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "split_split_cycles", "to": "split_rationale_9", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_models_predict_py", "to": "predict_load_model", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_models_predict_py", "to": "predict_predict_cycle", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "predict_predict_cycle", "to": "predict_rationale_15", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_models_evaluate_py", "to": "evaluate_compute_metrics", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_models_evaluate_py", "to": "evaluate_print_report", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_models_train_py", "to": "train_build_dummy_pipeline", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_models_train_py", "to": "train_build_baseline_pipeline", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_models_train_py", "to": "train_build_rf_pipeline", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_models_train_py", "to": "train_build_xgb_pipeline", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_models_train_py", "to": "train_build_lgbm_pipeline", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_models_train_py", "to": "train_cv_score", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_models_train_py", "to": "train_train_with_tracking", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "src_models_train_py", "to": "train_optimize_with_optuna", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "train_cv_score", "to": "train_train_with_tracking", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "train_train_with_tracking", "to": "train_rationale_85", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "train_optimize_with_optuna", "to": "train_rationale_107", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}];
+const LEGEND = [{"cid": 0, "color": "#4E79A7", "label": "Data Loading", "count": 11}, {"cid": 1, "color": "#F28E2B", "label": "Model Training Pipelines", "count": 11}, {"cid": 2, "color": "#E15759", "label": "Feature Engineering", "count": 7}, {"cid": 3, "color": "#76B7B2", "label": "Model Inference", "count": 4}, {"cid": 4, "color": "#59A14F", "label": "Train/Test Split", "count": 3}, {"cid": 5, "color": "#EDC948", "label": "Model Evaluation", "count": 3}, {"cid": 6, "color": "#B07AA1", "label": "Package Root", "count": 1}, {"cid": 7, "color": "#FF9DA7", "label": "Configuration", "count": 1}, {"cid": 8, "color": "#9C755F", "label": "Utils Package", "count": 1}, {"cid": 9, "color": "#BAB0AC", "label": "Features Package", "count": 1}, {"cid": 10, "color": "#4E79A7", "label": "Data Package", "count": 1}, {"cid": 11, "color": "#F28E2B", "label": "Models Package", "count": 1}];
+
+// HTML-escape helper — prevents XSS when injecting graph data into innerHTML
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Build vis datasets
+const nodesDS = new vis.DataSet(RAW_NODES.map(n => ({
+  id: n.id, label: n.label, color: n.color, size: n.size,
+  font: n.font, title: n.title,
+  _community: n.community, _community_name: n.community_name,
+  _source_file: n.source_file, _file_type: n.file_type, _degree: n.degree,
+})));
+
+const edgesDS = new vis.DataSet(RAW_EDGES.map((e, i) => ({
+  id: i, from: e.from, to: e.to,
+  label: '',
+  title: e.title,
+  dashes: e.dashes,
+  width: e.width,
+  color: e.color,
+  arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+})));
+
+const container = document.getElementById('graph');
+const network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, {
+  physics: {
+    enabled: true,
+    solver: 'forceAtlas2Based',
+    forceAtlas2Based: {
+      gravitationalConstant: -60,
+      centralGravity: 0.005,
+      springLength: 120,
+      springConstant: 0.08,
+      damping: 0.4,
+      avoidOverlap: 0.8,
+    },
+    stabilization: { iterations: 200, fit: true },
+  },
+  interaction: {
+    hover: true,
+    tooltipDelay: 100,
+    hideEdgesOnDrag: true,
+    navigationButtons: false,
+    keyboard: false,
+  },
+  nodes: { shape: 'dot', borderWidth: 1.5 },
+  edges: { smooth: { type: 'continuous', roundness: 0.2 }, selectionWidth: 3 },
+});
+
+network.once('stabilizationIterationsDone', () => {
+  network.setOptions({ physics: { enabled: false } });
+});
+
+function showInfo(nodeId) {
+  const n = nodesDS.get(nodeId);
+  if (!n) return;
+  const neighborIds = network.getConnectedNodes(nodeId);
+  const neighborItems = neighborIds.map(nid => {
+    const nb = nodesDS.get(nid);
+    const color = nb ? nb.color.background : '#555';
+    return `<span class="neighbor-link" style="border-left-color:${esc(color)}" onclick="focusNode(${JSON.stringify(nid)})">${esc(nb ? nb.label : nid)}</span>`;
+  }).join('');
+  document.getElementById('info-content').innerHTML = `
+    <div class="field"><b>${esc(n.label)}</b></div>
+    <div class="field">Type: ${esc(n._file_type || 'unknown')}</div>
+    <div class="field">Community: ${esc(n._community_name)}</div>
+    <div class="field">Source: ${esc(n._source_file || '-')}</div>
+    <div class="field">Degree: ${n._degree}</div>
+    ${neighborIds.length ? `<div class="field" style="margin-top:8px;color:#aaa;font-size:11px">Neighbors (${neighborIds.length})</div><div id="neighbors-list">${neighborItems}</div>` : ''}
+  `;
+}
+
+function focusNode(nodeId) {
+  network.focus(nodeId, { scale: 1.4, animation: true });
+  network.selectNodes([nodeId]);
+  showInfo(nodeId);
+}
+
+// Track hovered node — hover detection is more reliable than click params
+let hoveredNodeId = null;
+network.on('hoverNode', params => {
+  hoveredNodeId = params.node;
+  container.style.cursor = 'pointer';
+});
+network.on('blurNode', () => {
+  hoveredNodeId = null;
+  container.style.cursor = 'default';
+});
+container.addEventListener('click', () => {
+  if (hoveredNodeId !== null) {
+    showInfo(hoveredNodeId);
+    network.selectNodes([hoveredNodeId]);
+  }
+});
+network.on('click', params => {
+  if (params.nodes.length > 0) {
+    showInfo(params.nodes[0]);
+  } else if (hoveredNodeId === null) {
+    document.getElementById('info-content').innerHTML = '<span class="empty">Click a node to inspect it</span>';
+  }
+});
+
+const searchInput = document.getElementById('search');
+const searchResults = document.getElementById('search-results');
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.toLowerCase().trim();
+  searchResults.innerHTML = '';
+  if (!q) { searchResults.style.display = 'none'; return; }
+  const matches = RAW_NODES.filter(n => n.label.toLowerCase().includes(q)).slice(0, 20);
+  if (!matches.length) { searchResults.style.display = 'none'; return; }
+  searchResults.style.display = 'block';
+  matches.forEach(n => {
+    const el = document.createElement('div');
+    el.className = 'search-item';
+    el.textContent = n.label;
+    el.style.borderLeft = `3px solid ${n.color.background}`;
+    el.style.paddingLeft = '8px';
+    el.onclick = () => {
+      network.focus(n.id, { scale: 1.5, animation: true });
+      network.selectNodes([n.id]);
+      showInfo(n.id);
+      searchResults.style.display = 'none';
+      searchInput.value = '';
+    };
+    searchResults.appendChild(el);
+  });
+});
+document.addEventListener('click', e => {
+  if (!searchResults.contains(e.target) && e.target !== searchInput)
+    searchResults.style.display = 'none';
+});
+
+const hiddenCommunities = new Set();
+const legendEl = document.getElementById('legend');
+LEGEND.forEach(c => {
+  const item = document.createElement('div');
+  item.className = 'legend-item';
+  item.innerHTML = `<div class="legend-dot" style="background:${c.color}"></div>
+    <span class="legend-label">${c.label}</span>
+    <span class="legend-count">${c.count}</span>`;
+  item.onclick = () => {
+    if (hiddenCommunities.has(c.cid)) {
+      hiddenCommunities.delete(c.cid);
+      item.classList.remove('dimmed');
+    } else {
+      hiddenCommunities.add(c.cid);
+      item.classList.add('dimmed');
+    }
+    const updates = RAW_NODES
+      .filter(n => n.community === c.cid)
+      .map(n => ({ id: n.id, hidden: hiddenCommunities.has(c.cid) }));
+    nodesDS.update(updates);
+  };
+  legendEl.appendChild(item);
+});
+</script>
+<script>
+// Render hyperedges as shaded regions
+const hyperedges = [];
+// afterDrawing passes ctx already transformed to network coordinate space.
+// Draw node positions raw — no manual pan/zoom/DPR math needed.
+network.on('afterDrawing', function(ctx) {
+    hyperedges.forEach(h => {
+        const positions = h.nodes
+            .map(nid => network.getPositions([nid])[nid])
+            .filter(p => p !== undefined);
+        if (positions.length < 2) return;
+        ctx.save();
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = '#6366f1';
+        ctx.strokeStyle = '#6366f1';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // Centroid and expanded hull in network coordinates
+        const cx = positions.reduce((s, p) => s + p.x, 0) / positions.length;
+        const cy = positions.reduce((s, p) => s + p.y, 0) / positions.length;
+        const expanded = positions.map(p => ({
+            x: cx + (p.x - cx) * 1.15,
+            y: cy + (p.y - cy) * 1.15
+        }));
+        ctx.moveTo(expanded[0].x, expanded[0].y);
+        expanded.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 0.4;
+        ctx.stroke();
+        // Label
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = '#4f46e5';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(h.label, cx, cy - 5);
+        ctx.restore();
+    });
+});
+</script>
+</body>
+</html>

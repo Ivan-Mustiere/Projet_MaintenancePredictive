@@ -55,37 +55,7 @@ Documentation détaillée dans `docs/documentation.txt`.
 
 ## État d'avancement
 
-### Infrastructure — FAIT
-- [x] Structure complète du projet créée
-- [x] Git initialisé (branche `main`)
-- [x] `.gitignore` — exclut `.env`, `data/raw/*`, `models/*`, `mlruns/`
-- [x] `.env` / `.env.example` — variables d'environnement
-- [x] `requirements.txt` + `pyproject.toml` (ruff, black, pytest)
-- [x] `Dockerfile` + `docker-compose.yml` (API + MLflow + Prometheus + Grafana)
-- [x] `run.sh` — script de gestion (up/stop/rebuild/logs/install/test/train…)
-- [x] `.github/workflows/ci.yml` — lint + tests + docker build
-- [x] `dvc.yaml` — pipeline features → train
-- [x] `.claude/` — agents, skills, commands, rules, hooks
-
-### Code source — FAIT
-- [x] `src/utils/config.py` — centralise chemins et paramètres
-- [x] `src/data/load.py` — chargement PS2, FS1, profile, target
-- [x] `src/data/split.py` — split train/test strict
-- [x] `src/features/build_features.py` — stats temporelles + FFT par cycle
-- [x] `src/models/train.py` — pipelines baseline + RF avec MLflow
-- [x] `src/models/predict.py` — chargement modèle + inférence
-- [x] `src/models/evaluate.py` — métriques + rapport
-- [x] `app/main.py` — API FastAPI `/predict` + `/health` + métriques Prometheus
-- [x] `tests/` — test_data, test_features, test_model
-
-### ML — FAIT
-- [x] Blocs `__main__` dans `build_features.py` et `train.py`
-- [x] venv créé + dépendances installées
-- [x] `data/processed/features.parquet` — 2205 cycles × 41 features
-- [x] Modèles entraînés : Dummy, LogReg, RF, XGBoost, LightGBM + Optuna (RF)
-- [x] `models/model.joblib` — meilleur modèle déployé (RF tuné)
-- [x] 11/11 tests unitaires passent
-- [x] Notebooks 01 à 04 créés
+Infrastructure, code source et ML sont complets (voir `CLAUDE.local.md` pour le détail et les tâches restantes).
 
 ### Résultats CV (train — 5-fold stratifié)
 | Modèle             | F1     | ROC-AUC | Accuracy |
@@ -98,18 +68,6 @@ Documentation détaillée dans `docs/documentation.txt`.
 | Dummy              | 0.6894 | 0.5000  | 0.5260   |
 
 **Modèle déployé** : `models/model.joblib` (RF tuné — params Optuna : n_estimators=382, max_depth=9)
-
-### À FAIRE
-- [ ] `./run.sh up` — démarrer la stack Docker
-- [ ] Exécuter les notebooks (EDA + évaluation finale sur test set)
-- [ ] SHAP sur le test set (notebook 04)
-
-### Livraison — À FAIRE
-- [ ] Dépôt GitHub public
-- [ ] Notebooks finalisés (01 à 04)
-- [ ] Dashboard Grafana configuré
-- [ ] DVC remote configuré
-- [ ] README.md complété
 
 ---
 
