@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maintenance Prédictive — Valve Condition</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+    header p {
+      margin-top: 0.5rem;
+      color: #94a3b8;
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: #1e2130;
+      border: 1px solid #2d3348;
+      border-radius: 12px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-bottom: 0.4rem;
+      font-weight: 500;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    input[type="number"] {
+      flex: 1;
+      background: #0f1117;
+      border: 1px solid #2d3348;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 1rem;
+      padding: 0.65rem 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="number"]:focus { border-color: #6366f1; }
+
+    input[type="range"] {
+      width: 100%;
+      margin-bottom: 0.25rem;
+      accent-color: #6366f1;
+    }
+
+    .range-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-bottom: 1.25rem;
+    }
+
+    button {
+      width: 100%;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 0.75rem;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+    }
+    button:hover  { background: #4f52d0; }
+    button:active { opacity: 0.85; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Result */
+    #result {
+      margin-top: 1.5rem;
+      display: none;
+    }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .badge {
+      padding: 0.35rem 0.9rem;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    .badge.optimal     { background: #14532d; color: #4ade80; border: 1px solid #166534; }
+    .badge.non-optimal { background: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
+
+    .cycle-label { color: #94a3b8; font-size: 0.9rem; }
+
+    .proba-label {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-bottom: 0.35rem;
+    }
+
+    .proba-bar-bg {
+      background: #0f1117;
+      border-radius: 999px;
+      height: 10px;
+      overflow: hidden;
+      border: 1px solid #2d3348;
+    }
+    .proba-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.6s ease;
+    }
+    .proba-bar-fill.optimal     { background: linear-gradient(90deg, #16a34a, #4ade80); }
+    .proba-bar-fill.non-optimal { background: linear-gradient(90deg, #b91c1c, #f87171); }
+
+    .proba-value {
+      text-align: right;
+      font-size: 0.85rem;
+      margin-top: 0.3rem;
+      font-weight: 600;
+    }
+    .proba-value.optimal     { color: #4ade80; }
+    .proba-value.non-optimal { color: #f87171; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #2d3348;
+      margin: 1.25rem 0;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    .meta-item {
+      background: #0f1117;
+      border: 1px solid #2d3348;
+      border-radius: 8px;
+      padding: 0.6rem 0.85rem;
+    }
+    .meta-item .key   { font-size: 0.72rem; color: #64748b; margin-bottom: 0.15rem; }
+    .meta-item .value { font-size: 0.95rem; font-weight: 600; color: #e2e8f0; }
+
+    #error-msg {
+      margin-top: 1rem;
+      background: #450a0a;
+      border: 1px solid #7f1d1d;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      color: #f87171;
+      font-size: 0.875rem;
+      display: none;
+    }
+
+    footer {
+      margin-top: 2rem;
+      color: #475569;
+      font-size: 0.78rem;
+      text-align: center;
+    }
+    footer a { color: #6366f1; text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Maintenance Prédictive</h1>
+  <p>Condition de la valve — Système hydraulique UCI</p>
+</header>
+
+<div class="card">
+  <label for="cycle-input">Numéro de cycle (0 – 2204)</label>
+  <div class="input-row">
+    <input type="number" id="cycle-input" min="0" max="2204" value="0" placeholder="ex: 42">
+    <button id="predict-btn" onclick="predict()">Prédire</button>
+  </div>
+
+  <input type="range" id="cycle-slider" min="0" max="2204" value="0"
+         oninput="document.getElementById('cycle-input').value = this.value">
+  <div class="range-labels">
+    <span>0</span>
+    <span>Train (0–1999)</span>
+    <span>Test (2000–2204)</span>
+    <span>2204</span>
+  </div>
+
+  <div id="error-msg"></div>
+
+  <div id="result">
+    <div class="result-header">
+      <span class="badge" id="result-badge">—</span>
+      <span class="cycle-label" id="result-cycle">Cycle #—</span>
+    </div>
+
+    <div class="proba-label">Probabilité — valve optimale</div>
+    <div class="proba-bar-bg">
+      <div class="proba-bar-fill" id="proba-fill" style="width:0%"></div>
+    </div>
+    <div class="proba-value" id="proba-value">—</div>
+
+    <hr class="divider">
+
+    <div class="meta-grid">
+      <div class="meta-item">
+        <div class="key">Prédiction</div>
+        <div class="value" id="meta-pred">—</div>
+      </div>
+      <div class="meta-item">
+        <div class="key">Probabilité</div>
+        <div class="value" id="meta-proba">—</div>
+      </div>
+      <div class="meta-item">
+        <div class="key">Partition</div>
+        <div class="value" id="meta-split">—</div>
+      </div>
+      <div class="meta-item">
+        <div class="key">Cycle ID</div>
+        <div class="value" id="meta-cycle">—</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Données : <a href="https://archive.ics.uci.edu/dataset/447/condition+monitoring+of+hydraulic+systems" target="_blank">UCI Hydraulic Systems</a>
+  &nbsp;·&nbsp;
+  <a href="/docs" target="_blank">API docs</a>
+</footer>
+
+<script>
+  // Synchronise slider → input
+  document.getElementById('cycle-input').addEventListener('input', function () {
+    document.getElementById('cycle-slider').value = this.value;
+  });
+
+  // Appel Enter
+  document.getElementById('cycle-input').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') predict();
+  });
+
+  async function predict() {
+    const btn     = document.getElementById('predict-btn');
+    const errDiv  = document.getElementById('error-msg');
+    const resDiv  = document.getElementById('result');
+    const cycleId = parseInt(document.getElementById('cycle-input').value);
+
+    errDiv.style.display  = 'none';
+    resDiv.style.display  = 'none';
+    btn.disabled          = true;
+    btn.textContent       = 'Calcul…';
+
+    if (isNaN(cycleId) || cycleId < 0 || cycleId > 2204) {
+      showError('Cycle ID invalide — entrer une valeur entre 0 et 2204.');
+      btn.disabled = false;
+      btn.textContent = 'Prédire';
+      return;
+    }
+
+    try {
+      const resp = await fetch('/predict', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ cycle_id: cycleId }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err.detail || `Erreur ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      showResult(data);
+
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = 'Prédire';
+    }
+  }
+
+  function showResult(data) {
+    const optimal  = data.prediction === 1;
+    const pct      = (data.probability_optimal * 100).toFixed(1);
+    const cls      = optimal ? 'optimal' : 'non-optimal';
+    const label    = optimal ? 'OPTIMAL' : 'NON-OPTIMAL';
+    const split    = data.cycle_id < 2000 ? 'Train' : 'Test final';
+
+    document.getElementById('result-badge').textContent  = label;
+    document.getElementById('result-badge').className    = `badge ${cls}`;
+    document.getElementById('result-cycle').textContent  = `Cycle #${data.cycle_id}`;
+
+    const fill = document.getElementById('proba-fill');
+    fill.style.width = `${pct}%`;
+    fill.className   = `proba-bar-fill ${cls}`;
+
+    const probaVal = document.getElementById('proba-value');
+    probaVal.textContent = `${pct}%`;
+    probaVal.className   = `proba-value ${cls}`;
+
+    document.getElementById('meta-pred').textContent  = label;
+    document.getElementById('meta-proba').textContent = `${pct}%`;
+    document.getElementById('meta-split').textContent = split;
+    document.getElementById('meta-cycle').textContent = data.cycle_id;
+
+    document.getElementById('error-msg').style.display = 'none';
+    document.getElementById('result').style.display    = 'block';
+  }
+
+  function showError(msg) {
+    const errDiv = document.getElementById('error-msg');
+    errDiv.textContent    = msg;
+    errDiv.style.display  = 'block';
+    document.getElementById('result').style.display = 'none';
+  }
+</script>
+</body>
+</html>

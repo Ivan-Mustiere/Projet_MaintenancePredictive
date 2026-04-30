@@ -1,0 +1,18 @@
+stages:
+  build_features:
+    cmd: python -m src.features.build_features
+    deps:
+      - data/raw/PS2.txt
+      - data/raw/FS1.txt
+      - data/raw/profile.txt
+      - src/features/build_features.py
+    outs:
+      - data/processed/features.parquet
+
+  train:
+    cmd: python -m src.models.train
+    deps:
+      - data/processed/features.parquet
+      - src/models/train.py
+    outs:
+      - models/model.joblib
