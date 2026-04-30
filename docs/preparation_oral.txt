@@ -1,0 +1,173 @@
+================================================================
+PRÉPARATION ORAL — Maintenance Prédictive (ML 2025-2026)
+================================================================
+
+
+----------------------------------------------------------------
+RÉSUMÉ DU PROJET
+----------------------------------------------------------------
+
+Objectif :
+  Prédire si la condition de la valve d'un système hydraulique
+  industriel est optimale (1) ou non (0) à partir de données
+  capteurs, et expliquer les causes de dégradation via SHAP.
+
+Dataset :
+  UCI Condition Monitoring of Hydraulic Systems
+  - 2205 cycles de production
+  - PS2 : capteur de pression (100 Hz, 6000 points/cycle)
+  - FS1 : capteur de débit (10 Hz, 600 points/cycle)
+  - profile.txt : labels (valve_condition : 100, 90, 80, 73)
+
+Cible :
+  - 1 = Optimal       (valve_condition == 100)
+  - 0 = Non-optimal   (valve_condition < 100)
+
+Split train/test :
+  - Train : cycles 0 à 1999    (2000 cycles)
+  - Test  : cycles 2000 à 2204 (205 cycles) — jamais touché avant l'évaluation finale
+
+
+----------------------------------------------------------------
+CE QUE FAIT CHAQUE PARTIE
+----------------------------------------------------------------
+
+src/data/load.py          → Charge les fichiers bruts PS2, FS1, labels
+src/data/split.py         → Sépare train/test de façon stricte
+src/features/             → Calcule 41 features par cycle (stats + FFT)
+src/models/train.py       → Entraîne 5 modèles + Optuna, log dans MLflow
+src/models/predict.py     → Charge le modèle et prédit un cycle
+src/models/evaluate.py    → Calcule accuracy, F1, ROC-AUC, rapport
+app/main.py               → API FastAPI : /predict, /health, interface web
+tests/                    → 18 tests unitaires (data, features, modèle, API)
+notebooks/01              → Exploration des données (EDA)
+notebooks/02              → Feature engineering
+notebooks/03              → Comparaison modèles + Optuna
+notebooks/04              → Évaluation finale + SHAP
+monitoring/               → Dashboard Grafana + Prometheus
+run.sh                    → Point d'entrée : install, train, test, docker, notebooks
+.github/workflows/ci.yml  → CI/CD : lint + tests + docker build à chaque push
+
+
+----------------------------------------------------------------
+MODÈLE DÉPLOYÉ
+----------------------------------------------------------------
+
+Modèle   : Random Forest tuné par Optuna
+Params   : n_estimators=382, max_depth=9
+Résultats test final (205 cycles) :
+  - Accuracy : 1.00
+  - F1       : 1.00
+  - ROC-AUC  : 1.00
+
+Modèles comparés en cross-validation (5-fold, train set) :
+  LogReg (baseline)  F1=0.9991  AUC=0.9995
+  Random Forest      F1=0.9986  AUC=1.0000
+  RF tuné (Optuna)   F1=0.9981  AUC=1.0000
+  LightGBM           F1=0.9967  AUC=0.9999
+  XGBoost            F1=0.9957  AUC=1.0000
+  Dummy              F1=0.6894  AUC=0.5000
+
+
+----------------------------------------------------------------
+QUESTIONS PROBABLES DU JURY
+----------------------------------------------------------------
+
+Q : Pourquoi le score est-il de 1.0 ? C'est du overfitting ?
+R : Non. Le test set (cycles 2000-2204) n'a jamais été vu pendant
+    l'entraînement ni le tuning. Le score de 1.0 reflète la qualité
+    du signal industriel : les capteurs de pression (PS2) produisent
+    des signaux très distincts selon l'état de la valve.
+    Ce résultat est cohérent avec la littérature académique sur ce dataset UCI.
+
+Q : Pourquoi PS2 et FS1 séparément ?
+R : Les fréquences d'échantillonnage sont différentes (100 Hz vs 10 Hz).
+    On ne peut pas concaténer des tableaux de tailles différentes.
+    On agrège d'abord chaque capteur par cycle (stats + FFT), puis on combine.
+
+Q : Pourquoi le Random Forest plutôt que LightGBM ou XGBoost ?
+R : RF offre le meilleur compromis F1/vitesse sur ce dataset.
+    Il est aussi plus interprétable via SHAP (TreeExplainer natif).
+    LightGBM est légèrement moins performant ici et plus lent à tuner.
+
+Q : C'est quoi Optuna ?
+R : Un framework d'optimisation automatique des hyperparamètres.
+    Il explore intelligemment l'espace (algorithme TPE) pour trouver
+    les meilleurs n_estimators, max_depth, etc. sans grid search exhaustif.
+
+Q : Pourquoi F1 comme métrique principale ?
+R : Parce qu'il y a un déséquilibre de classes (plus de cycles non-optimaux
+    que optimaux). F1 pénalise les faux positifs ET les faux négatifs,
+    ce qui est adapté à un contexte industriel où une valve dégradée
+    non détectée peut causer une panne coûteuse.
+
+Q : Comment fonctionne l'API ?
+R : On envoie un POST /predict avec un cycle_id.
+    L'API retourne : prediction (0 ou 1) + probability_optimal.
+    Les données PS2/FS1 sont chargées en mémoire au démarrage (lifespan)
+    pour éviter de relire 78 MB à chaque requête.
+
+Q : Qu'est-ce que SHAP apporte ?
+R : SHAP explique POURQUOI le modèle prédit non-optimal pour un cycle donné.
+    Il identifie que les features PS2 (pression) sont les plus impactantes.
+    C'est crucial en industrie : l'opérateur sait sur quel capteur agir.
+
+Q : Qu'est-ce que Prometheus/Grafana surveille ?
+R : Latence des requêtes (p50/p95/p99), taux d'erreur HTTP,
+    nombre de requêtes par seconde, consommation CPU et mémoire de l'API.
+
+Q : C'est quoi le CI/CD ?
+R : À chaque push sur GitHub : lint (ruff + black) + tests unitaires
+    + build Docker automatique. Si un test échoue, le push est bloqué.
+
+Q : Pourquoi DVC ?
+R : Les fichiers de données (PS2.txt, FS1.txt) sont trop lourds pour git.
+    DVC les versionne séparément (comme git pour le code) sur un stockage externe.
+
+
+----------------------------------------------------------------
+CHIFFRES À RETENIR
+----------------------------------------------------------------
+
+  2205 cycles de données
+  41 features par cycle (stats temporelles + FFT)
+  5 modèles comparés, 1 déployé (RF tuné Optuna)
+  F1 = 1.00 sur 205 cycles de test jamais vus
+  18 tests unitaires automatisés
+  4 services Docker (API, MLflow, Prometheus, Grafana)
+  CI/CD GitHub Actions
+
+
+----------------------------------------------------------------
+CE QUI DISTINGUE CE PROJET
+----------------------------------------------------------------
+
+1. Séparation stricte train/test (anti-leakage)
+   → Aucune donnée de test utilisée avant l'évaluation finale
+
+2. Interprétabilité SHAP
+   → On ne se contente pas de prédire, on explique pourquoi
+
+3. Stack complète production-ready
+   → data → features → modèle → API → monitoring → CI/CD
+
+4. Traçabilité MLflow
+   → Chaque entraînement est loggé (params, métriques, artefacts)
+
+
+----------------------------------------------------------------
+STACK TECHNIQUE
+----------------------------------------------------------------
+
+ML          : scikit-learn, XGBoost, LightGBM, Optuna, SHAP
+Données     : pandas, numpy, scipy (FFT)
+API         : FastAPI + uvicorn + Jinja2
+Monitoring  : Prometheus + Grafana
+Tracking    : MLflow (SQLite backend)
+Versioning  : DVC (données), Git (code)
+Tests       : pytest + pytest-cov
+Lint        : ruff + black
+Docker      : docker compose (4 services)
+CI/CD       : GitHub Actions
+
+================================================================

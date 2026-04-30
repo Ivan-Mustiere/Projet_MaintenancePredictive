@@ -165,6 +165,15 @@ case "$CMD" in
               notebooks/03_modeling.ipynb \
               notebooks/04_evaluation.ipynb; do
       info "  → $nb"
+      python - "$nb" <<'PYEOF'
+import sys, uuid, nbformat
+path = sys.argv[1]
+nb = nbformat.read(path, as_version=4)
+for cell in nb.cells:
+    if not cell.get("id"):
+        cell["id"] = uuid.uuid4().hex[:8]
+nbformat.write(nb, path)
+PYEOF
       jupyter nbconvert --to notebook --execute --inplace \
         --ExecutePreprocessor.timeout=600 \
         --ExecutePreprocessor.kernel_name=python3 \

@@ -166,6 +166,7 @@ curl -X POST http://localhost:8000/predict \
 ./run.sh train       # entraîner les modèles
 ./run.sh test        # pytest avec couverture
 ./run.sh lint        # ruff + black
+./run.sh notebooks   # exécuter les notebooks 01 à 04
 ./run.sh up          # démarrer la stack Docker
 ./run.sh down        # arrêter la stack
 ./run.sh logs api    # logs du service API
